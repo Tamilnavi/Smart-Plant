@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Plant AI</title>
+    <script>
+        async function askPlant() {
+            const userInput = document.getElementById("userInput").value;
+            const responseDiv = document.getElementById("response");
+            responseDiv.innerHTML = "Thinking...";
+            
+            const apiKey = "AIzaSyDJA1v032HO-A_JFIHmDTDdZUgs-mAvKd0"; // Replace with your actual API key
+            const apiUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateText?key=" + apiKey;
+            
+            const sensorData = await fetch("/sensor-data").then(res => res.json());
+            const prompt = `You are a smart plant. Your current conditions: Temperature: ${sensorData.temperature}°C, Humidity: ${sensorData.humidity}%, Soil Moisture: ${sensorData.soil_moisture}%. Now respond to: "${userInput}"`;
+            
+            const requestBody = {
+                prompt: { text: prompt }
+            };
+            
+            try {
+                const response = await fetch(apiUrl, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(requestBody)
+                });
+                
+                const data = await response.json();
+                responseDiv.innerHTML = data.candidates[0].output || "No response.";
+            } catch (error) {
+                responseDiv.innerHTML = "Error: " + error.message;
+            }
+        }
+    </script>
+</head>
+<body>
+    <h1>Smart Plant AI</h1>
+    <p>Ask your plant anything:</p>
+    <input type="text" id="userInput" placeholder="Type your question...">
+    <button onclick="askPlant()">Ask</button>
+    <p><strong>Plant's Response:</strong> <span id="response"></span></p>
+    
+    <h2>Sensor Data:</h2>
+    <p>Temperature: <span id="temp">Loading...</span>°C</p>
+    <p>Humidity: <span id="humidity">Loading...</span>%</p>
+    <p>Soil Moisture: <span id="moisture">Loading...</span>%</p>
+    
+    <script>
+        async function updateSensorData() {
+            const data = await fetch("/sensor-data").then(res => res.json());
+            document.getElementById("temp").innerText = data.temperature;
+            document.getElementById("humidity").innerText = data.humidity;
+            document.getElementById("moisture").innerText = data.soil_moisture;
+        }
+        setInterval(updateSensorData, 5000); // Update every 5 seconds
+        updateSensorData();
+    </script>
+</body>
+</html>

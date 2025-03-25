@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Smart Plant Monitor</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+      :root {
+          --primary: #4E9F3D;
+          --secondary: #2196F3;
+          --background: #191A19;
+      }
+
+      body {
+          font-family: Arial, sans-serif;
+          margin: 0;
+          padding: 20px;
+          background: var(--background);
+          
+      }
+      .topic{
+        grid-column: span 2;
+          width: 100%;
+          display: flex;
+          justify-content: center;
+          background-color: #56ff78;
+          border-radius: 10px;
+          gap: 10px;
+          margin-bottom: 20px;
+      }
+      .dashboard {
+          max-width: 800px;
+          margin: 0 auto;
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+          gap: 15px;
+      }
+
+      .card , .ai_card {
+          background: #D8E9A8;
+          border-radius: 10px;
+          padding: 10px;
+          box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+          margin-bottom: 20px;
+      }
+      .ai_card{
+        grid-column: span 2;
+
+      }
+
+      .sensor-grid {
+          display: grid;
+          grid-template-columns: repeat(2, 1fr);
+          gap: 10px;
+      }
+
+      .sensor-item {
+          padding: 15px;
+          background: #f8f8f8;
+          border-radius: 0px 8px;
+          text-align: center;
+          min-height: 80px;
+      }
+
+      .controls {
+          display: flex;
+          gap: 10px;
+          margin-top: 20px;
+      }
+
+      button {
+          padding: 10px 20px;
+          border: none;
+          border-radius: 5px;
+          background: var(--primary);
+          color: white;
+          cursor: pointer;
+          transition: opacity 0.3s;
+      }
+
+      button:active {
+          opacity: 0.8;
+      }
+      button:hover{
+          transition: .8s all;
+          transform: skew(20deg, 0deg);
+          
+      }
+
+      .alert {
+          color: #d32f2f;
+          animation: pulse 1s infinite;
+      }
+      #message{
+        height: 30px;
+        margin-right: 20px;
+        border-radius: 8px;
+      }
+
+      #chat {
+          margin-top: 20px;
+          border-top: 1px solid #a39e9e;
+          padding-top: 15px;
+      }
+      #chat-history{
+        width: 100% ;
+        height: 150px;
+        padding-top: 10px;
+        padding-left: 10px;
+        justify-content: center;
+        background-color: #ffffff;
+        border-radius: 8px;
+        overflow-y: auto;
+        
+      }
+
+      @keyframes pulse {
+          0% { opacity: 1; }
+          50% { opacity: 0.5; }
+          100% { opacity: 1; }
+      }
+  </style>
+</head>
+<body>
+  
+  <div class="dashboard">
+    <div class="topic">
+        <h1><Big>S</Big>MART <big>P</big>LANT <small>v1.0</small></h1>
+      </div>
+      <div class="card">
+          <h2>🌱 Plant Sensors</h2>
+          <div class="sensor-grid" id="sensors"></div>
+      </div>
+      
+      <div class="card">
+          <h2>⚙️ Controls</h2>
+          <div class="controls">
+              <button onclick="controlDevice('pump')">💧 Water Pump</button>
+              <!-- <button onclick="controlDevice('mist')">🌫️ Mist Maker</button> -->
+          </div>
+          <div id="system-status" style="margin-top: 15px;"></div>
+      </div>
+
+      <div class="ai_card">
+          <h2>🤖 Smart Assistant</h2>
+          <div id="ai-summary"></div>
+          <div id="chat">
+              <input type="text" id="message" placeholder="Ask the plant..." style="width: 70%;">
+              <button onclick="sendMessage()">Send</button>
+              <div id="chat-history" style="margin-top: 10px;"></div>
+          </div>
+      </div>
+  </div>
+
+  <script>
+    
+      const ws = new WebSocket('ws://' + window.location.hostname + '/ws');
+      
+      ws.onopen = function() {
+          console.log('WebSocket connected');
+          updateStatus('Connected to device', 'green');
+      };
+
+      ws.onclose = function() {
+          updateStatus('Connection lost', 'red');
+      };
+
+      ws.onmessage = function(event) {
+          const data = JSON.parse(event.data);
+          updateUI(data);
+      };
+      function updateUI(data) {
+          // Update sensor data
+          const sensorsContainer = document.getElementById('sensors');
+          sensorsContainer.innerHTML = `
+              <div class="sensor-item">
+                  🌡️ Temperature: <br> <b>${data.temp?.toFixed(1) ?? '--'}°C
+              </div>
+              <div class="sensor-item">
+                  💧 Humidity:<br> <b>${data.humidity?.toFixed(1) ?? '--'}%
+              </div>
+              <div class="sensor-item">
+                  🌱 Soil Moisture:<br> <b>${data.soil ?? '--'}
+              </div>
+              <div class="sensor-item">
+                  💦 Water Level:<br><b> ${data.water ?? '--'}
+              </div>
+              <div class="sensor-item">
+                  🔆 Light Level:<br><b> ${data.light ?? '--'}%
+              </div>
+              <div class="sensor-item">
+                  🎚️ Pressure:<br><b> ${data.pressure?.toFixed(1) ?? '--'}hPa
+              </div>
+              <div class="sensor-item" style="grid-column: span 2;">
+                  Weather:<br><b> ${data.weatherDesc ?? '--'}
+              </div>
+          `;
+
+          // Update AI summary
+          document.getElementById('ai-summary').innerHTML = 
+              data.aisummary ? `📝 ${data.aisummary}` : '';
+
+          // Update chat history
+          if(data.aichat) {
+              const chatHistory = document.getElementById('chat-history');
+              chatHistory.innerHTML += `<div style="margin: 5px 0;">🤖: ${data.aichat}</div>`;
+              chatHistory.scrollTop = chatHistory.scrollHeight;
+          }
+      }
+
+      function controlDevice(device) {
+          fetch('/control', {
+              method: 'POST',
+              headers: {
+                  'Content-Type': 'application/x-www-form-urlencoded',
+              },
+              body: `${device}=toggle`
+          })
+          .then(response => {
+              if(!response.ok) throw Error('Control failed');
+              updateStatus(`${device} toggled`, 'var(--primary)');
+          })
+          .catch(error => {
+              updateStatus('Control failed', 'red');
+              console.error(error);
+          });
+      }
+
+      function sendMessage() {
+          const input = document.getElementById('message');
+          const message = input.value.trim();
+          
+          if(message) {
+              ws.send(JSON.stringify({
+                  type: 'chat',
+                  message: message
+              }));
+              
+              const chatHistory = document.getElementById('chat-history');
+              chatHistory.innerHTML += `<div style="margin: 5px 0; font-weight:bold;"><big>You:</big> ${message}</div>`;
+              input.value = '';
+          }
+      }
+
+      function updateStatus(text, color) {
+          const statusElement = document.getElementById('system-status');
+          statusElement.innerHTML = text;
+          statusElement.style.color = color;
+          setTimeout(() => statusElement.innerHTML = '', 3000);
+      }
+  </script>
+</body>
+</html>

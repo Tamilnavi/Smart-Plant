@@ -1,0 +1,161 @@
+#include <Wire.h>
+#include <Adafruit_BMP085.h>
+#include <U8g2lib.h>
+#include <RTClib.h>
+
+// Initialize U8g2 for I2C communication
+U8G2_SSD1306_128X32_UNIVISION_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
+// Create an instance of the BMP180 sensor
+Adafruit_BMP085 bmp;
+// RTC
+RTC_DS3231 rtc;
+
+#define LDR 12
+
+int time_mode = 1;
+
+//prev
+unsigned long prevTime_T1 = millis();
+unsigned long prevTime_T2 = millis();
+
+//time intervals
+long interval_T1 = 5000;
+
+
+void display(const char* text) {
+    u8g2.clearBuffer();  // Clear the display buffer
+  
+    const uint8_t* fonts[] = {
+      u8g2_font_10x20_tr,
+      u8g2_font_7x14_tr,
+      u8g2_font_6x10_tr,
+      u8g2_font_5x8_tr
+    };  // Font options in decreasing size
+  
+    int16_t maxWidth = 128;  // OLED width
+    int16_t maxHeight = 32;  // OLED height
+    int16_t lineHeight = 0;
+  
+    const uint8_t* selectedFont = fonts[0];
+    int linesNeeded = 1;
+  
+    // Find the largest font that fits the display
+    for (size_t i = 0; i < sizeof(fonts) / sizeof(fonts[0]); i++) {
+      u8g2.setFont(fonts[i]);
+      lineHeight = u8g2.getFontAscent() - u8g2.getFontDescent() + 1;
+  
+      // Simulate word wrapping to calculate lines needed
+      char buffer[256];
+      strncpy(buffer, text, sizeof(buffer));
+      char* word = strtok(buffer, " ");
+      char line[128] = "";
+      linesNeeded = 1;
+  
+      while (word) {
+        char tempLine[128];
+        snprintf(tempLine, sizeof(tempLine), "%s%s%s", line, strlen(line) > 0 ? " " : "", word);
+  
+        if (u8g2.getStrWidth(tempLine) > maxWidth) {
+          linesNeeded++;
+          strncpy(line, word, sizeof(line));
+        } else {
+          strncpy(line, tempLine, sizeof(line));
+        }
+        word = strtok(nullptr, " ");
+      }
+  
+      if (linesNeeded * lineHeight <= maxHeight) {
+        selectedFont = fonts[i];
+        break;
+      }
+    }
+  
+    // Set the selected font
+    u8g2.setFont(selectedFont);
+  
+    // Word wrapping and rendering
+    char buffer[256];
+    strncpy(buffer, text, sizeof(buffer));
+    char* word = strtok(buffer, " ");
+    char line[128] = "";
+    int16_t y = (maxHeight - (linesNeeded * lineHeight)) / 2 + lineHeight;
+  
+    while (word) {
+      char tempLine[128];
+      snprintf(tempLine, sizeof(tempLine), "%s%s%s", line, strlen(line) > 0 ? " " : "", word);
+  
+      if (u8g2.getStrWidth(tempLine) > maxWidth) {
+        u8g2.drawStr((maxWidth - u8g2.getStrWidth(line)) / 2, y, line);
+        y += lineHeight;
+        strncpy(line, word, sizeof(line));
+      } else {
+        strncpy(line, tempLine, sizeof(line));
+      }
+      word = strtok(nullptr, " ");
+    }
+  
+    if (strlen(line) > 0) {
+      u8g2.drawStr((maxWidth - u8g2.getStrWidth(line)) / 2, y, line);
+    }
+  
+    u8g2.sendBuffer();  // Update the display
+  }
+  
+void time(int mode){
+    DateTime now = rtc.now();
+    if(mode == 1){
+        
+            String TIME_DATA = String(now.hour())+':'+String(now.minute())+':'+String(now.second());
+            const char* TIME_C = TIME_DATA.c_str();
+            display(TIME_C);
+        
+    }
+    else if(mode == 2){
+        String DATE_DATA = String(now.day())+'-'+String(now.month())+'-'+String(now.year());
+        const char* DATE_C = DATE_DATA.c_str();
+        display(DATE_C);
+    }
+}
+void setup() {
+    pinMode(LDR,INPUT);
+    Serial.begin(115200);
+    Wire.begin();
+    u8g2.begin(); // Initialize the display
+    
+    // Initialize the BMP180 sensor
+    if (!bmp.begin()) {
+        Serial.println("Could not find a valid BMP180 sensor, check wiring!");
+        while (1);
+    }
+    // Initialize RTC
+    if (!rtc.begin()) {
+        Serial.println("Couldn't find RTC");
+    }
+    display("HI");
+    delay(1000);
+
+}
+
+void loop() {
+    unsigned long currentTime = millis();
+    //task1 time
+    if (currentTime - prevTime_T1 > interval_T1){
+        if (time_mode == 1){
+            if (currentTime - prevTime_T1 > 1000){
+                time(1);
+                prevTime_T1 = currentTime;
+            }
+            time_mode = 2;
+        }
+        else{
+            time(2);
+            time_mode = 1;
+        }
+        prevTime_T1 = currentTime;
+    }
+    // String ldr_data = String(analogRead(LDR));
+    // const char* ldr_c = ldr_data.c_str();
+    // display(ldr_c);
+    // delay(1000);
+    
+}

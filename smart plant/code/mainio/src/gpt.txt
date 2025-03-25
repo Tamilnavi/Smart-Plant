@@ -1,0 +1,509 @@
+#include <Arduino.h>
+#include <WiFi.h>
+#include <WebServer.h>
+#include <Wire.h>
+#include <Adafruit_SSD1306.h>
+#include <Adafruit_BMP085.h>
+#include <DHT.h>
+#include <RTClib.h>
+#include <HTTPClient.h>
+#include <ArduinoJson.h>
+
+// ===== Pin Definitions =====
+#define DHTPIN               14
+#define TOUCH_PIN            13
+#define SOIL_MOISTURE_PIN    34  // ADC input
+#define WATER_LEVEL_PIN      35  // ADC input
+#define BUZZER_PIN           5
+#define LIGHT_SENSOR_PIN     12  // ADC input (photoresistor)
+#define DFPLAYER_RX          16  // For DFPlayer (use Serial2)
+#define DFPLAYER_TX          17
+#define WATER_PUMP_RELAY_PIN 32
+#define MIST_MAKER_RELAY_PIN 33
+#define RGB_RED_PIN          25
+#define RGB_GREEN_PIN        26
+#define RGB_BLUE_PIN         27
+
+// ===== Sensor Thresholds & Parameters =====
+const int   SOIL_MOISTURE_THRESHOLD = 300;   // adjust per calibration
+const int   WATER_LEVEL_THRESHOLD   = 300;   // adjust per calibration
+const int   HUMIDITY_THRESHOLD      = 30;    // percent
+const float TEMPERATURE_HIGH_THRESHOLD = 35.0; // °C
+const int   LIGHT_HIGH_THRESHOLD    = 800;   // ADC reading for bright light
+const int   LIGHT_LOW_THRESHOLD     = 200;   // ADC reading for low light
+
+// ===== Global Sensor Data =====
+float temperatureBMP = 0;
+float pressure = 0;
+float humidity = 0;
+float temperatureDHT = 0;
+int   lightIntensity = 0;
+int   soilMoisture = 0;
+int   waterLevel = 0;
+String weatherReport = "";
+String geminiSummary = "";
+String chatResponse = "";
+
+// ===== Modules =====
+RTC_DS3231 rtc;
+#define DHTTYPE DHT11
+DHT dht(DHTPIN, DHTTYPE);
+Adafruit_BMP085 bmp;
+
+// OLED Display (128x32)
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 32
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
+
+// Web Server on port 80
+WebServer server(80);
+
+// ===== WiFi & API Credentials =====
+const char* ssid       = "NAVEEN";
+const char* password   = "naveen2006";
+const char* openWeatherApiKey = "075411f1a6bfd338e171f4c6c49a2888";
+const char* openWeatherCity   = "pallavaram";
+const char* geminiApiKey      = "AIzaSyDJA1v032HO-A_JFIHmDTDdZUgs-mAvKd0";
+const char* geminiApiUrl      = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent"; // Replace with actual endpoint
+
+// ===== Timers & Flags =====
+unsigned long previousSensorMillis = 0;
+const unsigned long sensorInterval = 1000; // 1 sec sensor update
+
+unsigned long previousWeatherMillis = 0;
+const unsigned long weatherInterval = 60000; // 60 sec weather update
+
+unsigned long previousGeminiMillis = 0;
+const unsigned long geminiInterval = 10000;  // 10 sec AI summary update
+
+unsigned long previousMistMillis = 0;
+bool mistActive = false;
+
+int lastHour = -1;
+bool morningGreeted = false;
+bool nightGreeted = false;
+bool tempAlertPlayed = false;
+bool sunnyAlertPlayed = false;
+bool cloudyAlertPlayed = false;
+bool rainAlertPlayed = false;
+bool soilAlertPlayed = false;
+bool waterLevelAlertPlayed = false;
+
+// ===== DFPlayer Setup =====
+// Using HardwareSerial2 for DFPlayer on pins 16 (RX) and 17 (TX)
+HardwareSerial myDFPlayer(2);
+
+// ===== Function Prototypes =====
+void setupWiFi();
+void handleRoot();
+void handleData();
+void handleControlPump();
+void handleControlMist();
+void handleChat();
+void readSensors();
+void updateDisplay();
+void checkAlerts();
+void callOpenWeather();
+void callGeminiAI();
+void playSound(int soundId);
+void beepHour();
+void manualTrigger();
+void updateRGBLed(uint8_t r, uint8_t g, uint8_t b);
+
+// ===== Setup =====
+void setup() {
+  Serial.begin(115200);
+  
+  // Set pin modes
+  pinMode(DHTPIN, INPUT);
+  pinMode(TOUCH_PIN, INPUT);
+  pinMode(SOIL_MOISTURE_PIN, INPUT);
+  pinMode(WATER_LEVEL_PIN, INPUT);
+  pinMode(BUZZER_PIN, OUTPUT);
+  pinMode(WATER_PUMP_RELAY_PIN, OUTPUT);
+  pinMode(MIST_MAKER_RELAY_PIN, OUTPUT);
+  
+  // DFPlayer on Serial2
+  myDFPlayer.begin(9600, SERIAL_8N1, DFPLAYER_RX, DFPLAYER_TX);
+  
+  // Setup LED PWM channels for RGB LED
+  ledcSetup(0, 5000, 8); // Channel 0 for red
+  ledcAttachPin(RGB_RED_PIN, 0);
+  ledcSetup(1, 5000, 8); // Channel 1 for green
+  ledcAttachPin(RGB_GREEN_PIN, 1);
+  ledcSetup(2, 5000, 8); // Channel 2 for blue
+  ledcAttachPin(RGB_BLUE_PIN, 2);
+  
+  // Initialize I2C (for OLED, RTC, BMP180)
+  Wire.begin();
+  
+  // Initialize OLED
+  if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
+    Serial.println("OLED init failed");
+    while(1);
+  }
+  display.clearDisplay();
+  display.display();
+  
+  // Initialize RTC
+  if(!rtc.begin()) {
+    Serial.println("RTC init failed");
+    while(1);
+  }
+  
+  // Initialize BMP180
+  if(!bmp.begin()) {
+    Serial.println("BMP180 init failed");
+    while(1);
+  }
+  
+  // Initialize DHT
+  dht.begin();
+  
+  // Connect to WiFi
+  setupWiFi();
+  
+  // Setup web server routes
+  server.on("/", handleRoot);
+  server.on("/data", handleData);
+  server.on("/controlPump", handleControlPump);
+  server.on("/controlMist", handleControlMist);
+  server.on("/chat", HTTP_POST, handleChat);
+  server.begin();
+  
+  Serial.println("Setup complete.");
+}
+
+// ===== Main Loop =====
+void loop() {
+  server.handleClient();
+  
+  unsigned long currentMillis = millis();
+  
+  if(currentMillis - previousSensorMillis >= sensorInterval) {
+    readSensors();
+    updateDisplay();
+    checkAlerts();
+    previousSensorMillis = currentMillis;
+  }
+  
+  if(currentMillis - previousWeatherMillis >= weatherInterval) {
+    callOpenWeather();
+    previousWeatherMillis = currentMillis;
+  }
+  
+  if(currentMillis - previousGeminiMillis >= geminiInterval) {
+    callGeminiAI();
+    previousGeminiMillis = currentMillis;
+  }
+  
+  manualTrigger(); // Check if touch sensor is activated for manual demo
+}
+
+// ===== WiFi Connection =====
+void setupWiFi() {
+  WiFi.begin(ssid, password);
+  Serial.print("Connecting to WiFi");
+  while(WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println();
+  Serial.print("Connected! IP: ");
+  Serial.println(WiFi.localIP());
+}
+
+// ===== Sensor Reading =====
+void readSensors() {
+  // Read DHT11 humidity and temperature
+  float newHumidity = dht.readHumidity();
+  float newTempDHT = dht.readTemperature();
+  if (!isnan(newHumidity)) { humidity = newHumidity; }
+  if (!isnan(newTempDHT)) { temperatureDHT = newTempDHT; }
+  
+  // Read BMP180 temperature and pressure
+  temperatureBMP = bmp.readTemperature();
+  pressure = bmp.readPressure() / 100.0;  // Convert to hPa
+  
+  // Read analog sensors
+  lightIntensity = analogRead(LIGHT_SENSOR_PIN);
+  soilMoisture   = analogRead(SOIL_MOISTURE_PIN);
+  waterLevel     = analogRead(WATER_LEVEL_PIN);
+}
+
+// ===== OLED Display Update =====
+void updateDisplay() {
+  display.clearDisplay();
+  DateTime now = rtc.now();
+  char timeBuffer[20];
+  sprintf(timeBuffer, "%02d:%02d:%02d", now.hour(), now.minute(), now.second());
+  display.setTextSize(1);
+  display.setTextColor(SSD1306_WHITE);
+  display.setCursor(0, 0);
+  display.print(timeBuffer);
+  display.setCursor(0, 10);
+  display.print("L:");
+  display.print(lightIntensity);
+  display.print(" T:");
+  display.print(temperatureBMP);
+  display.print("C");
+  display.setCursor(0, 20);
+  display.print("H:");
+  display.print(humidity);
+  display.print("% SM:");
+  display.print(soilMoisture);
+  display.display();
+}
+
+// ===== Alert & Action Checks =====
+void checkAlerts() {
+  DateTime now = rtc.now();
+
+  // --- Soil Moisture Alert ---
+  if (soilMoisture < SOIL_MOISTURE_THRESHOLD && !soilAlertPlayed) {
+    // Activate buzzer and red LED, start water pump and play sound (03)
+    digitalWrite(BUZZER_PIN, HIGH);
+    updateRGBLed(255, 0, 0); // Red for alert
+    digitalWrite(WATER_PUMP_RELAY_PIN, HIGH);
+    playSound(3);
+    delay(500);  // 500ms beep (blocking demo)
+    digitalWrite(BUZZER_PIN, LOW);
+    delay(2000); // Run pump for 2 sec
+    digitalWrite(WATER_PUMP_RELAY_PIN, LOW);
+    soilAlertPlayed = true;
+  }
+  else if (soilMoisture >= SOIL_MOISTURE_THRESHOLD) {
+    soilAlertPlayed = false;
+  }
+
+  // --- Water Level Alert ---
+  if (waterLevel < WATER_LEVEL_THRESHOLD && !waterLevelAlertPlayed) {
+    digitalWrite(BUZZER_PIN, HIGH);
+    updateRGBLed(255, 0, 0);
+    playSound(4);
+    waterLevelAlertPlayed = true;
+  }
+  else if (waterLevel >= WATER_LEVEL_THRESHOLD) {
+    digitalWrite(BUZZER_PIN, LOW);
+    waterLevelAlertPlayed = false;
+  }
+  
+  // --- Humidity Low Alert: Trigger Mist Maker ---
+  if (humidity < HUMIDITY_THRESHOLD) {
+    unsigned long currMillis = millis();
+    if (currMillis - previousMistMillis >= 10000) { // 10-sec interval
+      digitalWrite(MIST_MAKER_RELAY_PIN, HIGH);
+      // (Optional: play a sound here if desired)
+      delay(5000); // Mist for 5 sec
+      digitalWrite(MIST_MAKER_RELAY_PIN, LOW);
+      previousMistMillis = currMillis;
+    }
+  }
+  
+  // --- Good Morning Alert (5am-9am & bright light) ---
+  if (now.hour() >= 5 && now.hour() < 9 && lightIntensity > LIGHT_HIGH_THRESHOLD && !morningGreeted) {
+    display.clearDisplay();
+    display.setCursor(0, 0);
+    display.print("Good Morning!");
+    display.display();
+    playSound(1);
+    morningGreeted = true;
+  }
+  if (now.hour() >= 9) { morningGreeted = false; }
+  
+  // --- Good Night Alert (22-0 & low light) ---
+  if ((now.hour() >= 22 || now.hour() < 1) && lightIntensity < LIGHT_LOW_THRESHOLD && !nightGreeted) {
+    display.clearDisplay();
+    display.setCursor(0, 0);
+    display.print("Good Night!");
+    display.display();
+    playSound(2);
+    nightGreeted = true;
+  }
+  if (now.hour() < 22 && now.hour() >= 1) { nightGreeted = false; }
+  
+  // --- Hourly Beep ---
+  if (now.hour() != lastHour) {
+    beepHour();
+    lastHour = now.hour();
+  }
+  
+  // --- Temperature High Alert (local sensor) ---
+  if (temperatureBMP > TEMPERATURE_HIGH_THRESHOLD && !tempAlertPlayed) {
+    playSound(5);
+    tempAlertPlayed = true;
+  }
+  if (temperatureBMP <= TEMPERATURE_HIGH_THRESHOLD) { tempAlertPlayed = false; }
+}
+
+// ===== Beep at the Start of Each Hour =====
+void beepHour() {
+  tone(BUZZER_PIN, 1000, 500);  // 1000 Hz tone for 500ms
+}
+
+// ===== Update RGB LED Color =====
+void updateRGBLed(uint8_t r, uint8_t g, uint8_t b) {
+  ledcWrite(0, r);
+  ledcWrite(1, g);
+  ledcWrite(2, b);
+}
+
+// ===== Play Sound via DFPlayer =====
+void playSound(int soundId) {
+  // Replace the following with your DFPlayer command code.
+  // For demo, we print to Serial and simulate a short delay.
+  Serial.print("Playing sound: ");
+  Serial.println(soundId);
+  // Example: myDFPlayer.write(0x03); for soundId 3
+  delay(100);
+}
+
+// ===== Call OpenWeather API =====
+void callOpenWeather() {
+  if(WiFi.status() == WL_CONNECTED) {
+    HTTPClient http;
+    String url = "http://api.openweathermap.org/data/2.5/weather?q=" + 
+                  String(openWeatherCity) + "&appid=" + 
+                  String(openWeatherApiKey) + "&units=metric";
+    http.begin(url);
+    int httpCode = http.GET();
+    if(httpCode > 0) {
+      String payload = http.getString();
+      DynamicJsonDocument doc(1024);
+      DeserializationError error = deserializeJson(doc, payload);
+      if(!error) {
+        float temp = doc["main"]["temp"];
+        const char* condition = doc["weather"][0]["main"];
+        weatherReport = "Temp:" + String(temp) + " Condition:" + String(condition);
+        // Weather condition alerts
+        if(String(condition) == "Clear" && !sunnyAlertPlayed) {
+          playSound(7);
+          sunnyAlertPlayed = true;
+        }
+        else if(String(condition) == "Clouds" && !cloudyAlertPlayed) {
+          playSound(8);
+          cloudyAlertPlayed = true;
+        }
+        else if(String(condition) == "Rain" && !rainAlertPlayed) {
+          playSound(9);
+          rainAlertPlayed = true;
+        }
+      }
+    }
+    http.end();
+  }
+}
+
+// ===== Call Gemini AI API for Summary =====
+void callGeminiAI() {
+  if(WiFi.status() == WL_CONNECTED) {
+    HTTPClient http;
+    http.begin(geminiApiUrl);
+    http.addHeader("Content-Type", "application/json");
+    
+    DynamicJsonDocument doc(512);
+    doc["temperature"]   = temperatureBMP;
+    doc["humidity"]      = humidity;
+    doc["pressure"]      = pressure;
+    doc["soilMoisture"]  = soilMoisture;
+    doc["waterLevel"]    = waterLevel;
+    String jsonData;
+    serializeJson(doc, jsonData);
+    
+    int httpCode = http.POST(jsonData);
+    if(httpCode > 0) {
+      String payload = http.getString();
+      DynamicJsonDocument resDoc(512);
+      DeserializationError error = deserializeJson(resDoc, payload);
+      if(!error) {
+        geminiSummary = resDoc["summary"].as<String>();
+      }
+    }
+    http.end();
+  }
+}
+
+// ===== Web Server Handlers =====
+void handleRoot() {
+  String html = "<html><head><title>Smart Plant Dashboard</title></head><body>";
+  html += "<h1>Smart Plant</h1>";
+  DateTime now = rtc.now();
+  html += "<p>Time: " + String(now.timestamp()) + "</p>";
+  html += "<p>Light Intensity: " + String(lightIntensity) + "</p>";
+  html += "<p>Temperature: " + String(temperatureBMP) + "°C</p>";
+  html += "<p>Humidity: " + String(humidity) + "%</p>";
+  html += "<p>Pressure: " + String(pressure) + " hPa</p>";
+  html += "<p>Soil Moisture: " + String(soilMoisture) + "</p>";
+  html += "<p>Water Level: " + String(waterLevel) + "</p>";
+  html += "<p>Weather: " + weatherReport + "</p>";
+  html += "<p>AI Summary: " + geminiSummary + "</p>";
+  // Manual control buttons
+  html += "<button onclick=\"fetch('/controlPump')\">Activate Water Pump</button><br><br>";
+  html += "<button onclick=\"fetch('/controlMist')\">Activate Mist Maker</button><br><br>";
+  // Chat interface
+  html += "<form action='/chat' method='POST'>";
+  html += "Chat: <input type='text' name='chatInput'>";
+  html += "<input type='submit' value='Send'>";
+  html += "</form>";
+  html += "</body></html>";
+  server.send(200, "text/html", html);
+}
+
+void handleData() {
+  DynamicJsonDocument doc(512);
+  DateTime now = rtc.now();
+  doc["time"] = now.timestamp();
+  doc["lightIntensity"] = lightIntensity;
+  doc["temperature"] = temperatureBMP;
+  doc["humidity"] = humidity;
+  doc["pressure"] = pressure;
+  doc["soilMoisture"] = soilMoisture;
+  doc["waterLevel"] = waterLevel;
+  doc["weatherReport"] = weatherReport;
+  doc["geminiSummary"] = geminiSummary;
+  String json;
+  serializeJson(doc, json);
+  server.send(200, "application/json", json);
+}
+
+void handleControlPump() {
+  // Manually toggle water pump for 2 seconds
+  digitalWrite(WATER_PUMP_RELAY_PIN, HIGH);
+  delay(2000);
+  digitalWrite(WATER_PUMP_RELAY_PIN, LOW);
+  server.send(200, "text/plain", "Water pump activated");
+}
+
+void handleControlMist() {
+  // Manually toggle mist maker for 5 seconds
+  digitalWrite(MIST_MAKER_RELAY_PIN, HIGH);
+  delay(5000);
+  digitalWrite(MIST_MAKER_RELAY_PIN, LOW);
+  server.send(200, "text/plain", "Mist maker activated");
+}
+
+void handleChat() {
+  if (server.hasArg("chatInput")) {
+    String chatInput = server.arg("chatInput");
+    // Here, you would send chatInput along with sensor data to your Gemini AI API.
+    // For demonstration, we echo back a fixed response.
+    chatResponse = "Response from Smart Plant: I'm healthy but my moisture is low.";
+    server.send(200, "text/plain", chatResponse);
+  } else {
+    server.send(400, "text/plain", "No chat input provided");
+  }
+}
+
+// ===== Manual Trigger via Touch Sensor =====
+void manualTrigger() {
+  // When the touch sensor is pressed, execute all functions one-by-one (for seminar demo)
+  if(digitalRead(TOUCH_PIN) == HIGH) {
+    readSensors();
+    updateDisplay();
+    checkAlerts();
+    callOpenWeather();
+    callGeminiAI();
+    // Optionally simulate DFPlayer sounds etc.
+    delay(1000);  // Short pause for demo
+  }
+}

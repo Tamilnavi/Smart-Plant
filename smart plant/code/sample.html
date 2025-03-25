@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Smart Plant Monitor</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+      :root {
+          --primary: #4E9F3D;
+          --secondary: #2196F3;
+          --background: #191A19;
+      }
+
+      body {
+          font-family: Arial, sans-serif;
+          margin: 0;
+          padding: 20px;
+          background: var(--background);
+        
+          
+      }
+      .topic{
+        grid-column: span 2;
+          width: 100%;
+          display: flex;
+          justify-content: center;
+          background-color: #56ff78;
+          border-radius: 10px;
+          gap: 10px;
+          margin-bottom: 20px;
+          margin: 0 auto;
+          
+      }
+      .custom-icon {
+        font-size: 50px;  /* Adjust the size */
+        color: green;     /* Change color */
+        padding-left: 30px ;
+        align-self: center;
+        justify-content: right;
+       
+       
+}
+
+      .dashboard {
+          /* max-width: 800px; */
+          margin: 0 auto;
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+          gap: 15px;
+          height: 100vh;  /* 100% of the viewport height */
+      }
+
+      .card , .ai_card {
+          background: #D8E9A8;
+          border-radius: 10px;
+          padding: 10px;
+          box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+          margin-bottom: 20px;
+          text-align: center;
+          
+      }
+      /* .ai_card{
+        grid-column: span 2;
+
+      } */
+
+      .sensor-grid {
+          display: grid;
+          grid-template-columns: repeat(2, 1fr);
+          gap: 10px;
+          height: 100vh;
+            margin: 0;
+            flex-direction: column;
+      }
+
+      .sensor-item {
+          padding: 15px;
+          background: linear-gradient(to bottom, rgb(0, 255, 21), rgba(255, 165, 0, 0));
+          border-radius: 8px 8px;
+          text-align: center;
+          min-height: 80px;
+          position: relative;  /* Needed for absolute positioning */
+          padding: 15px;
+          border: 2px solid rgba(0, 0, 0, 0.349);
+          box-shadow: 0px 3px 8px rgba(0, 0, 0, 0.438);
+          
+      }
+    
+      #weather_box{
+          grid-column: span 2;
+      }
+
+     
+
+      button {
+          padding: 10px 20px;
+          border: none;
+          border-radius: 5px;
+          background: var(--primary);
+          color: white;
+          cursor: pointer;
+          transition: opacity 0.3s;
+          min-width: fit-content;
+          width: 30%;
+      }
+
+      button:active {
+          opacity: 0.8;
+      }
+      button:hover{
+          transition: .8s all;
+          transform: skew(20deg, 0deg);
+          
+      }
+      span{
+        font-size: large;
+        font-weight: bolder;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        min-height: 80px;
+        
+      }
+
+      .alert {
+          color: #d32f2f;
+          animation: pulse 1s infinite;
+      }
+      #message{
+        height: 30px;
+        margin-right: 20px;
+        border-radius: 8px;
+      }
+
+      #chat {
+          margin-top: 20px;
+          border-top: 1px solid #a39e9e;
+          padding-top: 15px;
+          position: relative;
+          height: 100vh;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+      }
+      #input{
+        display: flex;
+      }
+      #chat-history{
+        height: 85%;
+        justify-content: center;
+        background-color: #ffffff;
+        border-radius: 8px;
+        overflow-y: auto;
+        text-align: justify;
+        padding: 10px;
+        
+      }
+
+      @keyframes pulse {
+          0% { opacity: 1; }
+          50% { opacity: 0.5; }
+          100% { opacity: 1; }
+      }
+  </style>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+
+</head>
+<body>
+    <div class="topic">
+        <h1><Big>S</Big>MART <big>P</big>LANT <small>v1.0</small></h1>
+        <i class="fa-brands fa-github custom-icon" aria-label="Github document" onclick="window.open('https://github.com/Tamilnavi/Smart-Plant.git', '_blank');" style="cursor: pointer;"></i>
+      </div>
+  <div class="dashboard">
+    
+      <div class="card">
+    <h2>🌱 Plant Sensors</h2>
+    <div class="sensor-grid" id="sensors">
+        <div class="sensor-item">🌡️ Temperature: <br> <b>--°C</b></div>
+        <div class="sensor-item">💧 Humidity:<br> <b>--%</b></div>
+        <div class="sensor-item" onclick="controlDevice('pump')">🌱 Soil Moisture:<br> <b>--</b></div>
+        <div class="sensor-item">💦 Water Level:<br><b>--</b></div>
+        <div class="sensor-item">🔆 Light Level:<br><b>--%</b></div>
+        <div class="sensor-item">🎚️ Pressure:<br><b>-- hPa</b></div>
+        <div class="sensor-item" style="grid-column: span 2;">🌤️ Weather:<br><b>--</b></div>
+    </div>
+</div>
+
+      
+      <!-- <div class="card">
+          <h2>⚙️ Controls</h2>
+          <div class="controls">
+              <button onclick="controlDevice('pump')">💧 Water Pump</button>
+              <!-- <button onclick="controlDevice('mist')">🌫️ Mist Maker</button> 
+          </div>
+          <div id="system-status" style="margin-top: 15px;"></div>
+      </div> -->
+
+      <div class="card">
+          <h2>🤖 Smart Assistant</h2>
+          <div id="ai-summary"></div>
+          <div id="chat">
+            <div id="input">
+              <input type="text" id="message" placeholder="Ask the plant..." style="width: 70%;">
+              <button onclick="sendMessage()">Send</button>
+            </div>
+              <div id="chat-history" style="margin-top: 10px;"></div>
+          </div>
+      </div>
+  </div>
+  
+  <script>
+    
+      const ws = new WebSocket('ws://' + window.location.hostname + '/ws');
+      
+      ws.onopen = function() {
+          console.log('WebSocket connected');
+          updateStatus('Connected to device', 'green');
+      };
+
+      ws.onclose = function() {
+          updateStatus('Connection lost', 'red');
+      };
+
+      ws.onmessage = function(event) {
+          const data = JSON.parse(event.data);
+          updateUI(data);
+      };
+      function updateUI(data) {
+    // Update only the inner text of each sensor item
+    document.querySelector("#sensors").children[0].innerHTML = `🌡️ Temperature: <br> <span>${data.temp?.toFixed(1) ?? '--'}°C</span>`;
+    document.querySelector("#sensors").children[1].innerHTML = `💧 Humidity:<br> <span>${data.humidity?.toFixed(1) ?? '--'}%</span>`;
+    document.querySelector("#sensors").children[2].innerHTML = `🌱 Soil Moisture:<br> <span>${data.soil ?? '--'}</span><div id="system-status"></div>`;
+    document.querySelector("#sensors").children[3].innerHTML = `💦 Water Level:<br><span>${data.water ?? '--'}</span>`;
+    document.querySelector("#sensors").children[4].innerHTML = `🔆 Light Level:<br><span>${data.light ?? '--'}%</span>`;
+    document.querySelector("#sensors").children[5].innerHTML = `🎚️ Pressure:<br><span>${data.pressure?.toFixed(1) ?? '--'} hPa</span>`;
+    document.querySelector("#sensors").children[6].innerHTML = `🌤️ Weather:<br><span>${data.weatherDesc ?? '--'}</span>`;
+
+    // Update AI summary
+    document.getElementById('ai-summary').innerHTML = 
+        data.aisummary ? `📝 ${data.aisummary}` : 'Waiting for sensor data...';
+
+    // Update chat history
+    if(data.aichat) {
+        const chatHistory = document.getElementById('chat-history');
+        chatHistory.innerHTML += `<div style="margin: 5px 0;">🤖: ${data.aichat}</div>`;
+        chatHistory.scrollTop = chatHistory.scrollHeight;
+    }
+}
+
+
+      function controlDevice(device) {
+          fetch('/control', {
+              method: 'POST',
+              headers: {
+                  'Content-Type': 'application/x-www-form-urlencoded',
+              },
+              body: `${device}=toggle`
+          })
+          .then(response => {
+              if(!response.ok) throw Error('Control failed');
+              updateStatus(`${device} toggled`, 'var(--primary)');
+          })
+          .catch(error => {
+              updateStatus('Control failed', 'red');
+              console.error(error);
+          });
+      }
+
+      function sendMessage() {
+          const input = document.getElementById('message');
+          const message = input.value.trim();
+          
+          if(message) {
+              ws.send(JSON.stringify({
+                  type: 'chat',
+                  message: message
+              }));
+              
+              const chatHistory = document.getElementById('chat-history');
+              chatHistory.innerHTML += `<div style="margin: 5px 0; font-weight:bold;"><big>You:</big> ${message}</div>`;
+              input.value = '';
+          }
+      }
+
+      function updateStatus(text, color) {
+          const statusElement = document.getElementById('system-status');
+          statusElement.innerHTML = text;
+          statusElement.style.color = color;
+          setTimeout(() => statusElement.innerHTML = '', 3000);
+      }
+      document.addEventListener("DOMContentLoaded", function () {
+        updateUI({}); // Initializes with default values
+    });
+    
+  </script>
+  
+</body>
+</html>

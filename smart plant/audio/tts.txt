@@ -1,0 +1,22 @@
+df 
+1. good morning 
+2. good night
+3. soil moisture
+4. water level
+5. temp high
+6. wheater temp high
+7. when sunny
+8. when cloudy
+9. when rain
+10. intro - Hello, I'm smart plant v1.0
+
+Good morning – "Good morning! I’m ready for the day!"
+Good night – "Good night! See you tomorrow!"
+Soil moisture – "The soil is dry. Please water me!"
+Water level – "Water is low. Please refill!"
+Temp high – "It’s too hot! I need some shade!"
+Weather temp high – "It’s a hot day! Keep plants cool!"
+When sunny – "It’s sunny! I love it!"
+When cloudy – "It’s cloudy. No strong sun today!"
+When rain – "It’s raining! No need to water!"
+Intro – "Hi! I’m Smart Plant V1.0!"

@@ -16,7 +16,7 @@
 // Hardware Configuration
 #define DHTPIN 14
 #define DHTTYPE DHT11
-#define TOUCH_PIN 12
+#define TOUCH_PIN 15
 #define SOIL_MOISTURE_PIN 34
 #define WATER_LEVEL_PIN 35
 #define LIGHT_SENSOR_PIN 33
@@ -43,10 +43,10 @@ U8G2_SSD1306_128X32_UNIVISION_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
 const char* ssid = "NAVEEN";
 const char* password = "naveen2006";
 const String openWeatherKey = "075411f1a6bfd338e171f4c6c49a2888";
-const String geminiKey = "AIzaSyD9JB_qLisa_UycsmiL9Y0qV02k3avj3Sk";
+// const String geminiKey = "AIzaSyD9JB_qLisa_UycsmiL9Y0qV02k3avj3Sk";
 // In global variables section
-const String groqKey = "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"; // Replace with your Groq API key
-const String groqModel = "llama-3.3-70b-versatile"; // or "llama2-70b-4096"
+const String Key = "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"; // Replace with your Groq API key
+const String model = "llama-3.3-70b-versatile"; // or "llama2-70b-4096" llama3-8b-8192
 // System State
 struct SystemState {
   // Sensor Data
@@ -64,9 +64,11 @@ struct SystemState {
   bool waterInt = true;
   bool buzy = false;
   bool weatherInt = true;
+  bool reportInt = true;
   unsigned long pumpStart = 0;
   unsigned long mistStart = 0;
   unsigned long waterStart = 0;
+
   
   // Audio States
   bool isPlaying = false;
@@ -79,6 +81,7 @@ struct SystemState {
   // AI Data
   String aiSummary = "";
   String weatherDesc = "";
+  String report = "";
   String weatherIcon = "";
   String slide = "";
   float extTemp = 0;
@@ -211,6 +214,10 @@ const char webpageHTML[] PROGMEM = R"rawliteral(
     
       #weather_box{
           grid-column: span 2;
+          justify-items:center;
+          text-align: center;
+          
+          
       }
 
      
@@ -357,7 +364,7 @@ const char webpageHTML[] PROGMEM = R"rawliteral(
       };
       function updateUI(data) {
       const iconCode = data.icon; 
-      const iconUrl = "http://openweathermap.org/img/wn/${iconCode}.png";
+      const iconUrl = 'http://openweathermap.org/img/wn/'+ iconCode +'@2x.png';
     // Update only the inner text of each sensor item
     document.querySelector("#sensors").children[0].innerHTML = `🌡️ Temperature: <br> <span>${data.temp?.toFixed(1) ?? '--'}°C</span>`;
     document.querySelector("#sensors").children[1].innerHTML = `💧 Humidity:<br> <span>${data.humidity?.toFixed(1) ?? '--'}%</span>`;
@@ -366,7 +373,7 @@ const char webpageHTML[] PROGMEM = R"rawliteral(
     document.querySelector("#sensors").children[4].innerHTML = `🔆 Light Level:<br><span>${data.light ?? '--'}%</span>`;
     document.querySelector("#sensors").children[5].innerHTML = `🎚️ Pressure:<br><span>${data.pressure?.toFixed(1) ?? '--'} hPa</span>`;
     // document.querySelector("#sensors").children[6].innerHTML = `🌤️ Weather:<br><span>${data.weather ?? '--'}</span><br><span>${data.extmp ?? '--'} °C</span>`;
-    document.querySelector("#sensors").children[6].innerHTML = `🌤️ Weather:<br><img src="${iconUrl}" alt="${data.weather}" /><span>${data.weather ?? '--'}</span><br><span>${data.extmp ?? '--'} °C</span>`;
+    document.querySelector("#sensors").children[6].innerHTML = `🌤️ Weather:  <img src="${iconUrl}" alt="${data.weather}" />${data.weather +"<br>"+ data.temp ?? '--'} °C</span>`;
 
     // Update AI summary
     document.getElementById('ai-summary').innerHTML = 
@@ -615,6 +622,8 @@ void connectWiFi() {
   disp(internetAvailable ? "WiFi Connected" : "Offline Mode");
   controlRGB(0,255,0);
   delay(1000);
+  disp(String(WiFi.localIP()).c_str());
+  delay(2000);
 }
 
 // Web Server Setup
@@ -701,7 +710,7 @@ void handleAlerts() {
   }
 
   // Water Level Alert
-  if(state.waterLevel < 40 && state.waterInt && state.buzy ) {
+  if(state.waterLevel < 20 && state.waterInt && state.buzy ) {
     triggerAlert(0, 0, 255, 4);
     state.waterInt = false;
     state.waterStart = millis();
@@ -716,6 +725,23 @@ void handleAlerts() {
   if(state.extTemp <36 && !state.weatherInt){
     state.weatherInt = true;
   }
+  if(state.reportInt){
+    if (state.weatherDesc == "clear sky" || state.weatherDesc == "sunny" || state.weatherDesc == "fair"){
+      triggerAlert(255,255,0,7);
+    }
+    if(state.weatherDesc == "few clouds" || state.weatherDesc == "scattered clouds" || state.weatherDesc == "broken clouds" || state.weatherDesc == "overcast" || state.weatherDesc == "partly cloudy"){
+      triggerAlert(255,255,255,8);
+    }
+    if(state.weatherDesc == "light rain" || state.weatherDesc == "moderate rain" || state.weatherDesc == "heavy rain"|| state.weatherDesc == "rain shower"|| state.weatherDesc == "shower rain"){
+      triggerAlert(0,20,255,9);
+    }
+    state.report = state.weatherDesc;
+    state.reportInt = false;
+
+  }
+  if(state.weatherDesc != state.report){
+    state.reportInt = true;
+  }
   // Humidity Alert
   // if(state.humidity < 40 && !state.mistActive) {
   //   digitalWrite(MIST_RELAY, HIGH);
@@ -728,7 +754,7 @@ void handleAlerts() {
   // }
 
   //  Relay Timeouts
-    if(state.pumpActive && millis() - state.pumpStart > 2000) {
+    if(state.pumpActive && millis() - state.pumpStart > 1000) {
       digitalWrite(PUMP_RELAY, LOW);
       state.pumpActive = false;
       state.pumpInt = false;
@@ -865,28 +891,39 @@ void updateDisplay() {
 // Manual Trigger
 void handleManualTrigger() {
   static bool lastState = false;
-  bool currentState = touchRead(TOUCH_PIN) == HIGH;
+  bool currentState = digitalRead(TOUCH_PIN) == HIGH;
   
-  if(currentState && !lastState) {
+  if(currentState && !lastState && state.buzy) {
     static uint8_t demoMode = 0;
-    demoMode = (demoMode + 1) % 4;
+    demoMode = (demoMode + 1) % 9;
     
-    switch(0) {
+    switch(demoMode) {
       case 0:
-        triggerAlert(0, 255, 0, 0); // Normal
+        triggerAlert(200, 255, 200, 3); // good morning
         break;
       case 1:
-        digitalWrite(PUMP_RELAY, LOW);
-        delay(2000);
-        digitalWrite(PUMP_RELAY, HIGH);
+        triggerAlert(10, 10, 10, 1); // good night
         break;
       case 2:
-        digitalWrite(MIST_RELAY, LOW);
-        delay(2000);
-        digitalWrite(MIST_RELAY, HIGH);
+        triggerAlert(100, 20, 200, 2); // soil moisture
         break;
       case 3:
-        dfPlayer.play(2);
+        triggerAlert(0, 10, 255, 4); // wter
+        break;
+      case 4:
+        triggerAlert(255, 10, 20, 5); // temp high
+        break;
+      case 5:
+        triggerAlert(255, 10, 0, 6); // wheaather temp
+        break;
+      case 6:
+        triggerAlert(255, 255, 0, 7); // sunny
+        break;
+      case 7:
+        triggerAlert(255, 255, 255, 8); // cloudy
+        break;
+      case 8:
+        triggerAlert(0, 10, 255, 9); // rain
         break;
     }
   }
@@ -954,22 +991,34 @@ void getWeatherData() {
   http.end();
 }
 
-// Gemini AI
+
 // Replace queryGemini function with this Groq implementation
-String queryGroq(String prompt,String Aiprompt) {
+String queryGroq(String prompt) {
   if(!internetAvailable) return "Offline";
   
   HTTPClient http;
   http.begin("https://api.groq.com/openai/v1/chat/completions");
   http.addHeader("Content-Type", "application/json");
-  http.addHeader("Authorization", "Bearer " + groqKey);
-  
+  http.addHeader("Authorization", "Bearer " + Key);
+  // Create a friendly system message
+  String systemMessage = "You are Smart Plant V1.0, a friendly AI responsive for plant care. ";
+  systemMessage += "Always respond in a direct and related and short";
+  systemMessage += "your are actually a Cactus plant.";
+  systemMessage += "Created by Naveen, Anuub, and Bharath from Vels University. ";
+  systemMessage += "Keep responses concise (under 120 characters). ";
+  systemMessage += "Your role: provide direct answers to plant care questions.";
+  systemMessage += "Use simple language and context focused. ";
+  systemMessage += "Rules: 1. Only answer the user's question directly 2. Never ask follow-up questions 3. Keep responses under 15 words 4. Use simple language dont give irrelevent";
+
   String payload = "{";
-  payload += "\"messages\": [{\"role\": \"system\", \"content\": \"" + Aiprompt + "\"},";
-  payload += "\"messages\": {\"role\": \"user\", \"content\": \"" + prompt + "\"}],";
-  payload += "\"model\": \"" + groqModel + "\",";
-  payload += "\"temperature\": 0.7,";
-  payload += "\"max_tokens\": 256";
+  payload += "\"model\": \"" + model + "\",";
+  payload += "\"messages\": [";
+  payload += "{\"role\": \"system\", \"content\": \"" + systemMessage + "\"},";
+  payload += "{\"role\": \"user\", \"content\": \"" + prompt + "\"}";
+  payload += "],";
+  payload += "\"temperature\": 1.3,"; // Makes responses more friendly/creative
+  payload += "\"presence_penalty\": 0.5,";
+  payload += "\"max_tokens\": 120"; // Limit response length
   payload += "}";
 
   int httpCode = http.POST(payload);
@@ -984,7 +1033,7 @@ String queryGroq(String prompt,String Aiprompt) {
     return doc["choices"][0]["message"]["content"].as<String>();
   }
   else {
-    Serial.print("Groq API Error: ");
+    Serial.print("AI API Error: ");
     Serial.println(httpCode);
     return "API Error: " + String(httpCode);
   }
@@ -995,17 +1044,19 @@ String queryGroq(String prompt,String Aiprompt) {
 // In handleAIProcessing() replace Gemini call with Groq
 void handleAIProcessing() {
   static unsigned long lastAICall = 0;
-  if(internetAvailable && millis() - lastAICall > 10000) {
+  if(internetAvailable && (millis() - lastAICall > 60000 || millis() < 60000)) {
     getWeatherData();
-    String Aiprompt = "You are Smart Plant V1.0. Generate a concise plant status summary using this data: ";
-    Aiprompt += "Keep response under 120 characters and focus on context.";
-    String prompt = "Temperature: " + String(state.temp) + "°C, ";
+    String prompt = "Generate a concise plant status summary using this data: ";
+    prompt += "Temperature: " + String(state.temp) + "°C, ";
     prompt += "Humidity: " + String(state.humidity) + "%, ";
-    prompt += "Soil Moisture: " + String(state.soilMoisture) + ", ";
-    prompt += "Light Level: " + String(state.lightLevel) + "%. ";
-    
+    prompt += "Soil Moisture : " + String(state.soilMoisture) + ", ";
+    prompt += "Light Level: " + String(state.lightLevel) + "%, ";
+    prompt += "Air pressure: "+ String(state.pressure)+"hPa,";
+    prompt += "open weather: " + String(state.weatherDesc) + ", ";
+    prompt += "open weather temperature: " + String(state.extTemp) + "°C.";
+    prompt += "Keep response under 120 characters and simple and context.";
 
-    state.aiSummary = queryGroq(prompt,Aiprompt) ;
+    state.aiSummary = queryGroq(prompt) ;
     lastAICall = millis();
   }
 }
@@ -1024,21 +1075,19 @@ JsonDocument doc;
 DeserializationError error = deserializeJson(doc, data);
 if(!error && doc["type"] == "chat") {
 
-String prompt = "User: " + doc["message"].as<String>() ;
-String Aiprompt = String("now replay for this, and here some info: You are Smart Plant V1.0, created by Naveen, Anuub, and Bharath from Vels University. ") +
- String("your are actually a Cactus plant.")+
- String("Your role: provide direct answers to plant care questions.) ")+
-  String("Current sensor data: ")+
- "Temp: " + String(state.temp) + "°C, " +
- "Humidity: " + String(state.humidity) + "%, " +
- "Soil: " + String(state.soilMoisture) + "%, " +
- "Light: " + String(state.lightLevel) + "%," +
- "Air pressure: "+ String(state.pressure)+"hPa,"+
- "open weather: "+ String(state.weatherDesc)+
- "open weather temp:" + String(state.extTemp)+"°C"+
- String("Rules: 1. Only answer the user's question directly 2. Never ask follow-up questions 3. Keep responses under 15 words 4. Use simple language dont give irrelevent");
+String prompt = "User: " + doc["message"].as<String>();
 
- String response = queryGroq(prompt,Aiprompt);
+prompt += "  Current sensor data: ";
+prompt += "Temp: " + String(state.temp) + "°C, " ;
+prompt += "Humidity: " + String(state.humidity) + "%, " ;
+prompt += "Soil: " + String(state.soilMoisture) + "%, " ;
+prompt += "Light: " + String(state.lightLevel) + "%," ;
+prompt += "Air pressure: "+ String(state.pressure)+"hPa,";
+prompt += "open weather: "+ String(state.weatherDesc)+ ", ";
+prompt += "open weather temp:" + String(state.extTemp)+"°C.";
+
+String response = queryGroq(prompt);
+
 JsonDocument respDoc;
 respDoc["aichat"] = response;
 String output;

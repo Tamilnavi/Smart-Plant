@@ -83,11 +83,16 @@
           padding: 15px;
           border: 2px solid rgba(0, 0, 0, 0.349);
           box-shadow: 0px 3px 8px rgba(0, 0, 0, 0.438);
+          font-size: 24px;
           
       }
     
       #weather_box{
           grid-column: span 2;
+          justify-items:center;
+          text-align: center;
+          
+          
       }
 
      
@@ -120,6 +125,7 @@
         justify-content: center;
         text-align: center;
         min-height: 80px;
+        color:rgb(10, 48, 0);
         
       }
 
@@ -156,6 +162,10 @@
         padding: 10px;
         
       }
+        img {
+    max-width: 100%; /* Ensure the image fits within its container */
+    height: auto;    /* Maintain aspect ratio */
+}
 
       @keyframes pulse {
           0% { opacity: 1; }
@@ -228,6 +238,8 @@
           updateUI(data);
       };
       function updateUI(data) {
+      const iconCode = "02d"; 
+      const iconUrl = 'http://openweathermap.org/img/wn/'+ iconCode +'@2x.png';
     // Update only the inner text of each sensor item
     document.querySelector("#sensors").children[0].innerHTML = `🌡️ Temperature: <br> <span>${data.temp?.toFixed(1) ?? '--'}°C</span>`;
     document.querySelector("#sensors").children[1].innerHTML = `💧 Humidity:<br> <span>${data.humidity?.toFixed(1) ?? '--'}%</span>`;
@@ -235,7 +247,8 @@
     document.querySelector("#sensors").children[3].innerHTML = `💦 Water Level:<br><span>${data.water ?? '--'}</span>`;
     document.querySelector("#sensors").children[4].innerHTML = `🔆 Light Level:<br><span>${data.light ?? '--'}%</span>`;
     document.querySelector("#sensors").children[5].innerHTML = `🎚️ Pressure:<br><span>${data.pressure?.toFixed(1) ?? '--'} hPa</span>`;
-    document.querySelector("#sensors").children[6].innerHTML = `🌤️ Weather:<br><span>${data.weatherDesc ?? '--'}</span>`;
+    // document.querySelector("#sensors").children[6].innerHTML = `🌤️ Weather:<br><span>${data.weather ?? '--'}</span><br><span>${data.extmp ?? '--'} °C</span>`;
+    document.querySelector("#sensors").children[6].innerHTML = `🌤️ Weather:  <img src="${iconUrl}" alt="${data.weather}" />${data.weather +"<br>"+ data.temp ?? '--'} °C</span>`;
 
     // Update AI summary
     document.getElementById('ai-summary').innerHTML = 

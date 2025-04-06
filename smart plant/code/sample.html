@@ -213,7 +213,7 @@
           <div id="chat">
             <div id="input">
               <input type="text" id="message" placeholder="Ask the plant..." style="width: 70%;">
-              <button onclick="sendMessage()">Send</button>
+              <button onclick="send()">Send</button>
             </div>
               <div id="chat-history" style="margin-top: 10px;"></div>
           </div>
@@ -262,7 +262,10 @@
     }
 }
 
-
+document.getElementById('message').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') {
+        sendMessage(); // Same function as your button click
+    }});
       function controlDevice(device) {
           fetch('/control', {
               method: 'POST',

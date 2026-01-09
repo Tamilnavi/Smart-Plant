@@ -42,8 +42,8 @@ U8G2_SSD1306_128X32_UNIVISION_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
 // WiFi and API
 const char* ssid = "NAVEEN";
 const char* password = "naveen2006";
-const String openWeatherKey = "075411f1a6bfd338e171f4c6c49a2888";
-const String Key = "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"; 
+const String openWeatherKey = "____";
+const String Key = "___"; 
 const String model = "llama-3.3-70b-versatile"; 
 
 // System State
@@ -1022,4 +1022,5 @@ void onWebSocketEvent(AsyncWebSocket *server, AsyncWebSocketClient *client,
       }
     }
   }
+
 }

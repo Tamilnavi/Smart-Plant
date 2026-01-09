@@ -61,10 +61,10 @@ WebServer server(80);
 // ===== WiFi & API Credentials =====
 const char* ssid       = "NAVEEN";
 const char* password   = "naveen2006";
-const char* openWeatherApiKey = "075411f1a6bfd338e171f4c6c49a2888";
+const char* openWeatherApiKey = "";
 const char* openWeatherCity   = "pallavaram";
-const char* geminiApiKey      = "AIzaSyDJA1v032HO-A_JFIHmDTDdZUgs-mAvKd0";
-const char* geminiApiUrl      = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent"; // Replace with actual endpoint
+const char* geminiApiKey      = "";
+const char* geminiApiUrl      = ""; // Replace with actual endpoint
 
 // ===== Timers & Flags =====
 unsigned long previousSensorMillis = 0;
@@ -507,3 +507,4 @@ void manualTrigger() {
     delay(1000);  // Short pause for demo
   }
 }
+

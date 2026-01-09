@@ -42,10 +42,10 @@ U8G2_SSD1306_128X32_UNIVISION_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
 // WiFi and API
 const char* ssid = "NAVEEN";
 const char* password = "naveen2006";
-const String openWeatherKey = "075411f1a6bfd338e171f4c6c49a2888";
-const String geminiKey = "AIzaSyD9JB_qLisa_UycsmiL9Y0qV02k3avj3Sk";
+const String openWeatherKey = "____";
+const String geminiKey = "___";
 // In global variables section
-const String groqKey = "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"; // Replace with your Groq API key
+const String groqKey = "____"; // Replace with your Groq API key
 const String groqModel = "llama-3.3-70b-versatile"; // or "llama2-70b-4096" llama3-8b-8192
 // System State
 struct SystemState {
@@ -1057,4 +1057,5 @@ IPAddress ip = WiFi.localIP();
   const char* ip_cstr = ipString.c_str();
   disp(ip_cstr);// print local ip
   Serial.println(ip_cstr);
+
   delay(4000);

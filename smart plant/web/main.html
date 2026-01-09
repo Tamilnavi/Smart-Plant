@@ -10,8 +10,8 @@
             const responseDiv = document.getElementById("response");
             responseDiv.innerHTML = "Thinking...";
             
-            const apiKey = "AIzaSyDJA1v032HO-A_JFIHmDTDdZUgs-mAvKd0"; // Replace with your actual API key
-            const apiUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateText?key=" + apiKey;
+            const apiKey = ""; // Replace with your actual API key
+            const apiUrl = "" + apiKey;
             
             const sensorData = await fetch("/sensor-data").then(res => res.json());
             const prompt = `You are a smart plant. Your current conditions: Temperature: ${sensorData.temperature}°C, Humidity: ${sensorData.humidity}%, Soil Moisture: ${sensorData.soil_moisture}%. Now respond to: "${userInput}"`;
@@ -59,3 +59,4 @@
     </script>
 </body>
 </html>
+
